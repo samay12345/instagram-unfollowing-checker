@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instagram Unfollow Checker</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ig: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  --ig-solid: #e1306c;
+  --bg: #fafafa;
+  --surface: #fff;
+  --text: #262626;
+  --muted: #8e8e8e;
+  --border: #efefef;
+  --danger: #ed4956;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 20px rgba(0,0,0,.05);
+  --shadow-lg: 0 4px 24px rgba(0,0,0,.12);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Views ──────────────────────────────────────────── */
+.view { display: none; }
+.view.active { display: flex; }
+
+/* ── LOGIN VIEW ─────────────────────────────────────── */
+#v-login {
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #ffecd2 0%, #fcb7d5 50%, #d8b4fe 100%);
+}
+
+.login-card {
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.login-logo-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--ig);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-logo-icon svg {
+  width: 22px;
+  height: 22px;
+  color: #fff;
+  stroke: #fff;
+}
+
+.login-logo-text h1 {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.login-logo-text p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.field input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color .2s;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.field input:focus {
+  border-color: var(--ig-solid);
+  background: #fff;
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: var(--ig);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: opacity .2s, transform .1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-primary:hover { opacity: .9; }
+.btn-primary:active { transform: scale(.98); }
+.btn-primary:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+#login-error {
+  display: none;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #fff0f0;
+  border: 1.5px solid #ffd0d0;
+  border-radius: 10px;
+  font-size: 13.5px;
+  color: #c0392b;
+  line-height: 1.5;
+}
+
+.login-footer {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── LOADING VIEW ───────────────────────────────────── */
+#v-loading {
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 24px;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 3.5px solid var(--border);
+  border-top-color: #dc2743;
+  border-right-color: #cc2366;
+  border-bottom-color: #bc1888;
+  animation: spin .85s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-text {
+  font-size: 15px;
+  color: var(--muted);
+  text-align: center;
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+.loading-hint {
+  font-size: 12.5px;
+  color: #bbb;
+  text-align: center;
+  max-width: 280px;
+}
+
+/* ── RESULTS VIEW ───────────────────────────────────── */
+#v-results {
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.results-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+}
+
+.results-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0 10px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--ig);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.header-username {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-recheck {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--ig);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity .2s;
+}
+
+.btn-recheck:hover { opacity: .88; }
+.btn-recheck:disabled { opacity: .5; cursor: not-allowed; }
+
+.btn-logout {
+  padding: 6px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .2s;
+}
+
+.btn-logout:hover {
+  border-color: var(--text);
+  color: var(--text);
+}
+
+.stats-row {
+  display: flex;
+  gap: 16px;
+  padding-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.stat {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.stat strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--ig);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.search-row {
+  padding-bottom: 12px;
+}
+
+.search-input {
+  width: 100%;
+  max-width: 360px;
+  padding: 9px 14px 9px 36px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color .2s;
+  background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238e8e8e' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 12px center;
+}
+
+.search-input:focus { border-color: var(--ig-solid); background-color: #fff; }
+
+/* ── CARDS ──────────────────────────────────────────── */
+.cards-container {
+  padding: 20px;
+  flex: 1;
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: box-shadow .2s, transform .2s;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  overflow: hidden;
+  position: relative;
+}
+
+.avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+.avatar-initial { z-index: 0; }
+
+.card-text { overflow: hidden; }
+
+.card-username {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-username:hover { text-decoration: underline; }
+
+.card-fullname {
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  margin-top: 2px;
+}
+
+
+/* ── EMPTY STATE ────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 60px 24px;
+  display: none;
+}
+
+.empty-icon {
+  font-size: 52px;
+  margin-bottom: 16px;
+}
+
+.empty-state h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.empty-state p {
+  font-size: 14px;
+  color: var(--muted);
+  max-width: 280px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* ── NO SEARCH RESULTS ──────────────────────────────── */
+.no-results {
+  display: none;
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+
+/* ── RESPONSIVE ─────────────────────────────────────── */
+@media (max-width: 480px) {
+  .login-card { padding: 28px 20px; }
+  .results-header { padding: 0 14px; }
+  .cards-container { padding: 14px; }
+  .cards-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .card { padding: 14px; }
+}
+
+@media (max-width: 340px) {
+  .cards-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN VIEW ──────────────────────────────────────── -->
+<div id="v-login" class="view active">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+          <circle cx="12" cy="12" r="4"/>
+          <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
+        </svg>
+      </div>
+      <div class="login-logo-text">
+        <h1>Unfollow Checker</h1>
+        <p>See who doesn't follow you back</p>
+      </div>
+    </div>
+
+    <form id="login-form" autocomplete="off">
+      <div class="field">
+        <label for="input-username">Instagram Username</label>
+        <input id="input-username" type="text" placeholder="your_username" autocomplete="username" autocorrect="off" autocapitalize="none" spellcheck="false" required>
+      </div>
+      <div class="field">
+        <label for="input-password">Password</label>
+        <input id="input-password" type="password" placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn-primary" id="btn-login">
+        <span id="btn-login-text">Check Unfollowers</span>
+        <span id="btn-login-spinner" class="btn-spinner" style="display:none; width:16px; height:16px; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite;"></span>
+      </button>
+    </form>
+
+    <div id="login-error"></div>
+
+    <div class="login-footer">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      Credentials are never stored — session ends when you close this tab.
+    </div>
+  </div>
+</div>
+
+<!-- ── LOADING VIEW ─────────────────────────────────────── -->
+<div id="v-loading" class="view">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-msg">Connecting…</div>
+  <div class="loading-hint">This may take a minute for large accounts.</div>
+</div>
+
+<!-- ── RESULTS VIEW ─────────────────────────────────────── -->
+<div id="v-results" class="view">
+  <div class="results-header">
+    <div class="results-header-top">
+      <div class="header-user">
+        <div class="header-avatar" id="header-avatar"></div>
+        <span class="header-username">@<span id="display-username"></span></span>
+      </div>
+      <div class="header-actions">
+        <button class="btn-recheck" id="btn-recheck">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Re-check
+        </button>
+        <button class="btn-logout" id="btn-logout">Log out</button>
+      </div>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><strong id="stat-followers">0</strong> followers</div>
+      <div class="stat"><strong id="stat-following">0</strong> following</div>
+      <div class="stat-badge" id="stat-badge">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        <span id="stat-nonfollowers">0</span> not following back
+      </div>
+    </div>
+    <div class="search-row">
+      <input class="search-input" id="search" type="text" placeholder="Filter by username or name…">
+    </div>
+  </div>
+
+  <div class="cards-container">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🎉</div>
+      <h3>Everyone follows you back!</h3>
+      <p>All <strong id="empty-following-count">0</strong> accounts you follow also follow you. Nice!</p>
+    </div>
+    <div class="cards-grid" id="cards-grid">
+      <div class="no-results" id="no-results">No accounts match your filter.</div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+'use strict';
+
+// ── State ──────────────────────────────────────────────
+let sessionId = sessionStorage.getItem('iguc_sid');
+let currentUsername = sessionStorage.getItem('iguc_user');
+let nonFollowersData = [];
+let taskPoll = null;
+
+// ── Utils ──────────────────────────────────────────────
+function esc(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function avatarColor(username) {
+  const palette = ['#833ab4','#fd1d1d','#fcb045','#1e90ff','#2ed573','#ff6b6b','#a29bfe','#fd79a8','#00cec9','#e17055'];
+  let h = 0;
+  for (const c of (username || 'x')) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return palette[Math.abs(h) % palette.length];
+}
+
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+
+async function api(path, body) {
+  const r = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return r.json();
+}
+
+// ── Login ──────────────────────────────────────────────
+document.getElementById('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+
+  const username = document.getElementById('input-username').value.trim();
+  const password = document.getElementById('input-password').value;
+  const btn = document.getElementById('btn-login');
+  const errEl = document.getElementById('login-error');
+  const spinner = document.getElementById('btn-login-spinner');
+  const btnText = document.getElementById('btn-login-text');
+
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btnText.textContent = 'Logging in…';
+  spinner.style.display = 'inline-block';
+
+  try {
+    const res = await api('/api/login', { username, password });
+    if (!res.ok) {
+      errEl.textContent = res.error;
+      errEl.style.display = 'block';
+      return;
+    }
+
+    sessionId = res.session_id;
+    currentUsername = res.username;
+    sessionStorage.setItem('iguc_sid', sessionId);
+    sessionStorage.setItem('iguc_user', currentUsername);
+
+    showView('v-loading');
+    startFetch();
+  } catch {
+    errEl.textContent = 'Network error. Is the server running?';
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = 'Check Unfollowers';
+    spinner.style.display = 'none';
+  }
+});
+
+// ── Fetch ──────────────────────────────────────────────
+async function startFetch() {
+  document.getElementById('loading-msg').textContent = 'Starting…';
+
+  try {
+    const res = await api('/api/fetch', { session_id: sessionId });
+    if (!res.ok) {
+      showView('v-login');
+      document.getElementById('login-error').textContent = res.error;
+      document.getElementById('login-error').style.display = 'block';
+      return;
+    }
+    pollTask(res.task_id);
+  } catch {
+    showView('v-login');
+    document.getElementById('login-error').textContent = 'Network error starting fetch.';
+    document.getElementById('login-error').style.display = 'block';
+  }
+}
+
+function pollTask(tid) {
+  if (taskPoll) clearInterval(taskPoll);
+  taskPoll = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/task/${tid}`);
+      const t = await res.json();
+
+      if (t.status === 'running') {
+        document.getElementById('loading-msg').textContent = t.msg || 'Working…';
+        return;
+      }
+
+      clearInterval(taskPoll);
+      taskPoll = null;
+
+      if (t.status === 'error') {
+        showView('v-login');
+        document.getElementById('login-error').textContent = t.error;
+        document.getElementById('login-error').style.display = 'block';
+        return;
+      }
+
+      if (t.status === 'done') {
+        renderResults(t.data);
+      }
+    } catch {
+      // keep polling on transient network blip
+    }
+  }, 1500);
+}
+
+// ── Results ────────────────────────────────────────────
+function renderResults(data) {
+  nonFollowersData = data.non_followers;
+
+  // Header
+  const u = currentUsername || '';
+  document.getElementById('display-username').textContent = u;
+  document.getElementById('header-avatar').textContent = (u[0] || '?').toUpperCase();
+  document.getElementById('stat-followers').textContent = data.followers.toLocaleString();
+  document.getElementById('stat-following').textContent = data.following.toLocaleString();
+  document.getElementById('stat-nonfollowers').textContent = nonFollowersData.length.toLocaleString();
+
+  // Cards
+  const grid = document.getElementById('cards-grid');
+  // Clear old cards but keep the no-results placeholder
+  grid.querySelectorAll('.card').forEach(c => c.remove());
+
+  if (nonFollowersData.length === 0) {
+    document.getElementById('empty-following-count').textContent = data.following.toLocaleString();
+    document.getElementById('empty-state').style.display = 'block';
+  } else {
+    document.getElementById('empty-state').style.display = 'none';
+    nonFollowersData.forEach(user => grid.insertBefore(buildCard(user), document.getElementById('no-results')));
+  }
+
+  showView('v-results');
+}
+
+function buildCard(user) {
+  const color = avatarColor(user.username);
+  const initial = (user.username[0] || '?').toUpperCase();
+  const div = document.createElement('div');
+  div.className = 'card';
+  div.dataset.uid = user.user_id;
+  div.dataset.username = user.username.toLowerCase();
+  div.dataset.fullname = (user.full_name || '').toLowerCase();
+
+  div.innerHTML = `
+    <div class="avatar" style="background:${color}">
+      ${user.pic ? `<img src="${esc(user.pic)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <span class="avatar-initial">${initial}</span>
+    </div>
+    <div class="card-text">
+      <a class="card-username" href="https://instagram.com/${esc(user.username)}" target="_blank" rel="noopener">@${esc(user.username)}</a>
+      ${user.full_name ? `<span class="card-fullname">${esc(user.full_name)}</span>` : ''}
+    </div>
+  `;
+  return div;
+}
+
+// ── Re-check ───────────────────────────────────────────
+document.getElementById('btn-recheck').addEventListener('click', () => {
+  if (taskPoll) { clearInterval(taskPoll); taskPoll = null; }
+  document.getElementById('cards-grid').querySelectorAll('.card').forEach(c => c.remove());
+  document.getElementById('search').value = '';
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('no-results').style.display = 'none';
+  showView('v-loading');
+  startFetch();
+});
+
+// ── Search filter ──────────────────────────────────────
+document.getElementById('search').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  let shown = 0;
+  document.querySelectorAll('#cards-grid .card').forEach(card => {
+    const match = !q || card.dataset.username.includes(q) || card.dataset.fullname.includes(q);
+    card.style.display = match ? '' : 'none';
+    if (match) shown++;
+  });
+  document.getElementById('no-results').style.display = (shown === 0 && q) ? 'block' : 'none';
+});
+
+// ── Logout ─────────────────────────────────────────────
+document.getElementById('btn-logout').addEventListener('click', async () => {
+  if (taskPoll) { clearInterval(taskPoll); taskPoll = null; }
+  await api('/api/logout', { session_id: sessionId }).catch(() => {});
+  sessionStorage.removeItem('iguc_sid');
+  sessionStorage.removeItem('iguc_user');
+  sessionId = null;
+  currentUsername = null;
+  nonFollowersData = [];
+
+  // Reset login form
+  document.getElementById('login-form').reset();
+  document.getElementById('login-error').style.display = 'none';
+  document.getElementById('cards-grid').querySelectorAll('.card').forEach(c => c.remove());
+
+  showView('v-login');
+});
+</script>
+</body>
+</html>
