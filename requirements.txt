@@ -1,2 +1,2 @@
 flask>=2.3.0
-instagrapi>=2.0.0
+instagrapi>=2.5.11
