@@ -46,7 +46,7 @@
 
 .login-card {
   width: 100%;
-  max-width: 420px;
+  max-width: 460px;
   background: var(--surface);
   border-radius: 18px;
   padding: clamp(1.75rem, 4vw, 2.25rem);
@@ -100,8 +100,8 @@
   flex: 1;
   border: none;
   border-radius: 9px;
-  padding: 0.45rem 0.65rem;
-  font-size: 0.82rem;
+  padding: 0.4rem 0.35rem;
+  font-size: 0.74rem;
   font-weight: 650;
   cursor: pointer;
   background: transparent;

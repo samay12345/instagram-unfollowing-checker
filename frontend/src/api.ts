@@ -37,6 +37,10 @@ export type FetchResultPayload = {
   following_count: number
 }
 
+export type ImportListsResponse =
+  | { ok: true; data: FetchResultPayload }
+  | { ok: false; error?: string }
+
 export async function postJson<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(path, {
     method: 'POST',

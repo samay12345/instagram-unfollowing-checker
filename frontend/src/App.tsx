@@ -4,6 +4,7 @@ import {
   getJson,
   postJson,
   type FetchResultPayload,
+  type ImportListsResponse,
   type LoginResponse,
   type NonFollower,
   type TaskResponse,
@@ -13,6 +14,7 @@ type Phase = 'login' | 'loading' | 'results'
 
 const SESSION_KEY = 'iguc_sid'
 const USER_KEY = 'iguc_user'
+const IMPORT_KEY = 'iguc_import'
 const POLL_MS = 720
 
 function avatarHue(username: string): string {
@@ -30,11 +32,15 @@ function avatarHue(username: string): string {
   return palette[Math.abs(h) % palette.length]
 }
 
-type LoginMethod = 'password' | 'session'
+type LoginMethod = 'password' | 'session' | 'browser'
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('login')
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('password')
+  const [importSource, setImportSource] = useState(() => sessionStorage.getItem(IMPORT_KEY) === '1')
+  const [browserImportName, setBrowserImportName] = useState('')
+  const [followersFile, setFollowersFile] = useState<File | null>(null)
+  const [followingFile, setFollowingFile] = useState<File | null>(null)
   const [sessionCookie, setSessionCookie] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -122,6 +128,8 @@ export default function App() {
     async (res: { session_id: string; username: string }) => {
       setPendingId(null)
       setVerificationCode('')
+      sessionStorage.removeItem(IMPORT_KEY)
+      setImportSource(false)
       sessionStorage.setItem(SESSION_KEY, res.session_id)
       sessionStorage.setItem(USER_KEY, res.username)
       setLoggedUser(res.username)
@@ -135,10 +143,19 @@ export default function App() {
     setLoginMethod(m)
     if (m === 'password') {
       setSessionCookie('')
+      setFollowersFile(null)
+      setFollowingFile(null)
+    } else if (m === 'session') {
+      setPassword('')
+      setPendingId(null)
+      setVerificationCode('')
+      setFollowersFile(null)
+      setFollowingFile(null)
     } else {
       setPassword('')
       setPendingId(null)
       setVerificationCode('')
+      setSessionCookie('')
     }
   }
 
@@ -199,6 +216,49 @@ export default function App() {
     }
   }
 
+  const onSubmitBrowserImport = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginError('')
+    if (!followersFile || !followingFile) {
+      setLoginError('Choose both followers.json and following.json.')
+      return
+    }
+    setLoginBusy(true)
+    try {
+      let followers: unknown
+      let following: unknown
+      try {
+        followers = JSON.parse(await followersFile.text())
+        following = JSON.parse(await followingFile.text())
+      } catch {
+        setLoginError('Invalid JSON in one of the files.')
+        return
+      }
+      if (!Array.isArray(followers) || !Array.isArray(following)) {
+        setLoginError('Each file must be a JSON array of objects with at least username.')
+        return
+      }
+      const res = await postJson<ImportListsResponse>('/api/import-lists', { followers, following })
+      if (!res.ok || !('data' in res)) {
+        setLoginError((res as { error?: string }).error || 'Import failed.')
+        return
+      }
+      const display = browserImportName.trim() || 'browser-import'
+      sessionStorage.removeItem(SESSION_KEY)
+      sessionStorage.setItem(USER_KEY, display)
+      sessionStorage.setItem(IMPORT_KEY, '1')
+      setImportSource(true)
+      setLoggedUser(display)
+      setResults(res.data)
+      setFilter('')
+      setPhase('results')
+    } catch {
+      setLoginError('Network error. Is Flask running on port 5000?')
+    } finally {
+      setLoginBusy(false)
+    }
+  }
+
   const cancelTwoFactor = () => {
     setPendingId(null)
     setVerificationCode('')
@@ -213,6 +273,8 @@ export default function App() {
     }
     sessionStorage.removeItem(SESSION_KEY)
     sessionStorage.removeItem(USER_KEY)
+    sessionStorage.removeItem(IMPORT_KEY)
+    setImportSource(false)
     setLoggedUser(null)
     setResults(null)
     setPassword('')
@@ -220,11 +282,15 @@ export default function App() {
     setPendingId(null)
     setLoginError('')
     setSessionCookie('')
+    setFollowersFile(null)
+    setFollowingFile(null)
+    setBrowserImportName('')
     setLoginMethod('password')
     setPhase('login')
   }
 
   const onRecheck = () => {
+    if (importSource) return
     stopPoll()
     setResults(null)
     void startFetch()
@@ -280,7 +346,18 @@ export default function App() {
                 title={pendingId ? 'Finish two-factor with password first.' : undefined}
                 onClick={() => pickLoginMethod('session')}
               >
-                Session cookie
+                Session
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={loginMethod === 'browser'}
+                className={`tab-btn ${loginMethod === 'browser' ? 'active' : ''}`}
+                disabled={!!pendingId}
+                title={pendingId ? 'Finish two-factor with password first.' : undefined}
+                onClick={() => pickLoginMethod('browser')}
+              >
+                Browser JSON
               </button>
             </div>
 
@@ -341,7 +418,7 @@ export default function App() {
                   )}
                 </div>
               </form>
-            ) : (
+            ) : loginMethod === 'session' ? (
               <form onSubmit={onSubmitSession}>
                 <div className="warn-session">
                   <strong>Use only your own Instagram session</strong>
@@ -369,6 +446,49 @@ export default function App() {
                   </button>
                 </div>
               </form>
+            ) : (
+              <form onSubmit={onSubmitBrowserImport}>
+                <div className="warn-session">
+                  <strong>From Playwright collector</strong>
+                  Run <code style={{ fontSize: '0.8em' }}>cd collector && npm install && npm run collect</code> first (see{' '}
+                  <code>collector/README.md</code>). Then upload <code>followers.json</code> and <code>following.json</code>{' '}
+                  from <code>collector/out/</code>. No Instagram password is sent — Flask only compares the two arrays.
+                </div>
+                <div className="field">
+                  <label htmlFor="bname">Your handle (for the header)</label>
+                  <input
+                    id="bname"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    placeholder="your_username"
+                    value={browserImportName}
+                    onChange={(e) => setBrowserImportName(e.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="ffollowers">followers.json</label>
+                  <input
+                    id="ffollowers"
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={(e) => setFollowersFile(e.target.files?.[0] ?? null)}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="ffollowing">following.json</label>
+                  <input
+                    id="ffollowing"
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={(e) => setFollowingFile(e.target.files?.[0] ?? null)}
+                  />
+                </div>
+                <div className="btn-row">
+                  <button type="submit" className="btn btn-primary" disabled={loginBusy}>
+                    {loginBusy ? 'Please wait…' : 'Compare & show results'}
+                  </button>
+                </div>
+              </form>
             )}
 
             <div className={`alert-error ${loginError ? 'visible' : ''}`} role="alert">
@@ -381,10 +501,15 @@ export default function App() {
                   Server keeps your session in RAM only (no password saved to disk). Instagram often shows &quot;wrong
                   password&quot; when it actually distrusts the network — try another Wi‑Fi or hotspot before assuming a typo.
                 </>
-              ) : (
+              ) : loginMethod === 'session' ? (
                 <>
                   In Chrome: DevTools → Application → Cookies → <code>https://instagram.com</code> → copy the{' '}
                   <code>sessionid</code> value. If login fails, refresh instagram.com in the browser and copy a new value.
+                </>
+              ) : (
+                <>
+                  Requires Flask on port 5000. After viewing results from JSON, <strong>Re-check</strong> is disabled — run the
+                  collector again or use Password / Session login to refresh from Instagram directly.
                 </>
               )}
             </p>
@@ -424,7 +549,17 @@ export default function App() {
                 </div>
               </div>
               <div className="toolbar-actions">
-                <button type="button" className="btn btn-primary btn-sm" onClick={onRecheck}>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={onRecheck}
+                  disabled={importSource}
+                  title={
+                    importSource
+                      ? 'Re-check uses Instagram login. Run the collector again or sign in with Password / Session.'
+                      : undefined
+                  }
+                >
                   Re-check
                 </button>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={onLogout}>
@@ -458,7 +593,7 @@ export default function App() {
             ) : (
               <div className="cards">
                 {filtered.map((u) => (
-                  <UserCard key={u.user_id} user={u} />
+                  <UserCard key={u.user_id ? `${u.user_id}-${u.username}` : u.username} user={u} />
                 ))}
               </div>
             )}

@@ -123,6 +123,9 @@ def _finalize_ig_session(cl):
             "ts": time.time(),
         }
     return jsonify({"ok": True, "session_id": sid, "username": cl.username})
+
+
+@app.route("/")
 def spa_index():
     if not _spa_ready():
         return (
@@ -471,6 +474,69 @@ def api_login_session():
         return jsonify({"ok": False, "error": msg})
 
     return _finalize_ig_session(cl)
+
+
+def _normalize_import_row(entry):
+    if not isinstance(entry, dict):
+        return None
+    username = (entry.get("username") or "").strip().lstrip("@")
+    if not username:
+        return None
+    uid = entry.get("id") if entry.get("id") is not None else entry.get("pk")
+    user_id = str(uid).strip() if uid is not None and str(uid).strip() else ""
+    fn = entry.get("full_name") if entry.get("full_name") is not None else entry.get("fullName")
+    full_name = str(fn).strip() if fn is not None and str(fn).strip() else ""
+    pic_raw = entry.get("pic") if entry.get("pic") is not None else entry.get("profile_pic_url")
+    pic = str(pic_raw).strip() if pic_raw is not None and str(pic_raw).strip() else ""
+    return {
+        "user_id": user_id,
+        "username": username,
+        "full_name": full_name,
+        "pic": pic,
+    }
+
+
+@app.route("/api/import-lists", methods=["POST"])
+def api_import_lists():
+    """Compare follower/following arrays from the Playwright collector (no instagrapi session)."""
+    body = request.get_json(silent=True) or {}
+    raw_followers = body.get("followers")
+    raw_following = body.get("following")
+    if not isinstance(raw_followers, list) or not isinstance(raw_following, list):
+        return jsonify({"ok": False, "error": "Expected JSON with followers[] and following[] arrays."}), 400
+
+    followers_rows = []
+    seen_f = set()
+    for item in raw_followers:
+        row = _normalize_import_row(item)
+        if row:
+            key = row["username"].lower()
+            if key not in seen_f:
+                seen_f.add(key)
+                followers_rows.append(row)
+
+    following_rows = []
+    seen_g = set()
+    for item in raw_following:
+        row = _normalize_import_row(item)
+        if row:
+            key = row["username"].lower()
+            if key not in seen_g:
+                seen_g.add(key)
+                following_rows.append(row)
+
+    follower_names = {r["username"].lower() for r in followers_rows}
+    non_followers = sorted(
+        [u for u in following_rows if u["username"].lower() not in follower_names],
+        key=lambda x: x["username"].lower(),
+    )
+
+    data = {
+        "non_followers": non_followers,
+        "followers_count": len(followers_rows),
+        "following_count": len(following_rows),
+    }
+    return jsonify({"ok": True, "data": data})
 
 
 @app.route("/api/fetch", methods=["POST"])

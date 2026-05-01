@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+collector/node_modules/
+collector/out/*.json
+!collector/out/.gitkeep
